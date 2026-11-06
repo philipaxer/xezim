@@ -3694,7 +3694,7 @@ impl<'a> BytecodeCompiler<'a> {
         // `u0.c` while these bindings are keyed on the bare spelling. Bind
         // BOTH, or the inlined body's own result variable resolves to no
         // signal and the enclosing statement bails.
-        let qpfx = name.rsplit_once('.').map(|(p, _)| p.to_string());
+        let qpfx = fd.body_instance().map(str::to_string);
         let saved_locals = std::mem::take(&mut self.local_var_regs);
         let saved_local_strings = std::mem::take(&mut self.local_var_is_string);
         let saved_local_reals = std::mem::take(&mut self.local_var_is_real);
@@ -3970,25 +3970,37 @@ impl<'a> BytecodeCompiler<'a> {
         // §13.4.1: a VOID function called as a statement is a task enable in
         // all but name — inline it through the same machinery. (Non-void
         // returns would need a result variable; those stay on the AST.)
-        let (ports, body, lifetime): (
+        let (ports, body, lifetime, instance): (
             Vec<crate::ast::decl::FunctionPort>,
             crate::ast::shared_vec::SharedVec<Statement>,
             Option<crate::ast::types::Lifetime>,
+            Option<String>,
         ) = if let Some(td) = self.tasks.and_then(|t| t.get(task_name)) {
-            (td.ports.clone(), td.items.clone(), td.lifetime)
+            (
+                td.ports.clone(),
+                td.items.clone(),
+                td.lifetime,
+                td.body_instance().map(str::to_string),
+            )
         } else if let Some(fd) = self.functions.and_then(|f| f.get(task_name)) {
             if !matches!(fd.return_type, crate::ast::types::DataType::Void(_)) {
                 return false;
             }
-            (fd.ports.clone(), fd.items.clone(), fd.lifetime)
+            (
+                fd.ports.clone(),
+                fd.items.clone(),
+                fd.lifetime,
+                fd.body_instance().map(str::to_string),
+            )
         } else {
             return false;
         };
         // §13.3.1: a STATIC subroutine's variables — its locals and output
         // formals — keep their values between calls; an inline gives each
         // call fresh registers. Only an input-only static body with no
-        // declarations behaves the same either way.
-        if matches!(lifetime, Some(crate::ast::types::Lifetime::Static))
+        // declarations behaves the same either way. No written lifetime is
+        // static: an `automatic` definition's subroutines are stamped.
+        if !matches!(lifetime, Some(crate::ast::types::Lifetime::Automatic))
             && (ports
                 .iter()
                 .any(|p| !matches!(p.direction, PortDirection::Input))
@@ -4012,7 +4024,7 @@ impl<'a> BytecodeCompiler<'a> {
         }
         let start = self.insns.len();
         let start_reg = self.next_reg;
-        let qpfx = task_name.rsplit_once('.').map(|(p, _)| p.to_string());
+        let qpfx = instance;
 
         // Evaluate input actuals in the CALLER's scope, before any binding.
         let mut binds: Vec<(String, (RegId, u32))> = Vec::with_capacity(ports.len());

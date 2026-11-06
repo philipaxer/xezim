@@ -533,7 +533,7 @@ impl Simulator {
     /// time zero. Allocate all cells first, then evaluate their initializers.
     pub(super) fn hoist_subroutine_statics(
         module: &mut ElaboratedModule,
-    ) -> (HashSet<String>, HashSet<String>) {
+    ) -> (HashSet<String>, HashSet<String>, HashMap<String, String>) {
         fn selected(s: &Statement, nba_names: &HashSet<String>) -> bool {
             match &s.kind {
                 StatementKind::VarDecl {
@@ -769,14 +769,51 @@ impl Simulator {
             }
             true
         }
+        /// §13.3.1: one cell and one initialization per declaration. A later
+        /// entry prepares its own body with the first entry's ordinal, so its
+        /// nested statics get the same names.
+        fn prepare_entry(
+            module: &ElaboratedModule,
+            items: &mut Vec<Statement>,
+            ports: &[crate::ast::decl::FunctionPort],
+            routine: &str,
+            prepared: &mut HashMap<String, usize>,
+            next_ordinal: &mut usize,
+            allocate: &mut Vec<Statement>,
+            initialize: &mut Vec<Statement>,
+            names: &mut HashSet<String>,
+        ) -> bool {
+            if let Some(&ordinal) = prepared.get(routine) {
+                return prepare(
+                    module,
+                    items,
+                    ports,
+                    routine,
+                    ordinal,
+                    &mut Vec::new(),
+                    &mut Vec::new(),
+                    names,
+                );
+            }
+            *next_ordinal += 1;
+            let ordinal = *next_ordinal;
+            let any = prepare(module, items, ports, routine, ordinal, allocate, initialize, names);
+            if any {
+                prepared.insert(routine.to_string(), ordinal);
+            }
+            any
+        }
         let mut names = HashSet::default();
         let mut routines = HashSet::default();
         let mut allocate = Vec::new();
         let mut initialize = Vec::new();
         let mut ordinal = 0usize;
+        let mut prepared: HashMap<String, usize> = HashMap::default();
+        // §23.6: table name to the canonical name that owns its cells, for a
+        // written `f.n` that names the static through another table entry.
+        let mut spellings: HashMap<String, String> = HashMap::default();
         let mut functions: Vec<_> = module.functions.keys().cloned().collect();
         functions.sort();
-        let mut rewritten: HashMap<String, crate::ast::shared_vec::SharedVec<Statement>> = HashMap::default();
         for key in functions {
             let Some(original) = module.functions.get(&key) else {
                 continue;
@@ -785,24 +822,23 @@ impl Simulator {
                 continue;
             }
             let mut fd = original.clone();
-            if let Some(items) = rewritten.get(&fd.name.name.name) {
-                fd.items = items.clone();
-            } else {
-                ordinal += 1;
-                if !prepare(
-                    module,
-                    &mut fd.items,
-                    &fd.ports,
-                    &fd.name.name.name,
-                    ordinal,
-                    &mut allocate,
-                    &mut initialize,
-                    &mut names,
-                ) {
-                    continue;
-                }
-                routines.insert(fd.name.name.name.clone());
-                rewritten.insert(fd.name.name.name.clone(), fd.items.clone());
+            let routine = fd.canonical().to_string();
+            if !prepare_entry(
+                module,
+                &mut fd.items,
+                &fd.ports,
+                &routine,
+                &mut prepared,
+                &mut ordinal,
+                &mut allocate,
+                &mut initialize,
+                &mut names,
+            ) {
+                continue;
+            }
+            routines.insert(fd.name.name.name.clone());
+            if routine != fd.name.name.name {
+                spellings.insert(fd.name.name.name.clone(), routine);
             }
             module.functions.insert(key, fd);
         }
@@ -813,18 +849,22 @@ impl Simulator {
                 continue;
             };
             if td.name.scopes.is_empty() {
-                ordinal += 1;
-                if prepare(
+                let routine = td.canonical().to_string();
+                if prepare_entry(
                     module,
                     &mut td.items,
                     &td.ports,
-                    &td.name.name.name,
-                    ordinal,
+                    &routine,
+                    &mut prepared,
+                    &mut ordinal,
                     &mut allocate,
                     &mut initialize,
                     &mut names,
                 ) {
                     routines.insert(td.name.name.name.clone());
+                    if routine != td.name.name.name {
+                        spellings.insert(td.name.name.name.clone(), routine);
+                    }
                 }
             }
             module.tasks.insert(key, td);
@@ -842,7 +882,7 @@ impl Simulator {
                 module.static_init_blocks.push(block(initialize));
             }
         }
-        (names, routines)
+        (names, routines, spellings)
     }
 
     /// Would `mark_static_locals` mark anything in `items` (read-only, so a

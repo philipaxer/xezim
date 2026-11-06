@@ -2235,6 +2235,16 @@ impl Simulator {
                 return self.sva_sig_read(args);
             }
             ExprKind::MemberAccess { expr: base, member } => {
+                // A subroutine body keeps `f.b.v` as a member chain.
+                if !self.hoisted_static_spellings.is_empty()
+                    && Self::member_chain_root(expr)
+                        .is_some_and(|r| self.hoisted_static_spellings.contains_key(r))
+                    && let Some(flat) = Self::member_chain_as_hier_ident(expr)
+                    && let ExprKind::Ident(h) = &flat.kind
+                    && self.hoisted_static_through_entry(h).is_some()
+                {
+                    return self.eval_expr_ctx(&flat, ctx_width);
+                }
                 if let Some(v) = self.plain_member_read(base, member) {
                     return v;
                 }

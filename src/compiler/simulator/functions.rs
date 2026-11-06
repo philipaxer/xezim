@@ -535,11 +535,11 @@ impl Simulator {
         // §13.3.1/§13.4.1: a STATIC-lifetime function's implicit return
         // variable persists across calls — a path that exits without
         // assigning returns the PREVIOUS call's value, not a fresh default.
-        // Only module-scope functions without an `automatic` qualifier
-        // qualify (class methods default to automatic, §8.6).
+        // Only table entries, which carry an ident, without an `automatic`
+        // qualifier qualify (class methods default to automatic, §8.6).
         let static_ret_key = (!matches!(fd.lifetime, Some(crate::ast::types::Lifetime::Automatic))
-            && self.module.functions.contains_key(&ret_name))
-        .then(|| format!("{}::{}", pkg_scope.as_deref().unwrap_or("-"), ret_name));
+            && fd.ident.is_some())
+        .then(|| format!("{}::{}", pkg_scope.as_deref().unwrap_or("-"), fd.canonical()));
         let seeded = static_ret_key
             .as_ref()
             .and_then(|k| self.static_fn_ret.get(k).cloned())
@@ -729,12 +729,7 @@ impl Simulator {
         // §3.12.1 / §23.4: actuals bind in the caller above; the body
         // resolves free names in its own lexical scope. In particular a
         // root/unit helper must not inherit a child's same-named signals.
-        let body_scope = fd
-            .name
-            .name
-            .name
-            .rsplit_once('.')
-            .map(|(scope, _)| scope.to_string());
+        let body_scope = fd.body_instance().map(str::to_string);
         let saved_body_hint = self.name_resolve_hint.replace(body_scope.clone());
         let body_scope = body_scope.unwrap_or_default();
         let saved_body_activation = self.activation_scope.replace(Some(body_scope.clone()));
@@ -746,8 +741,8 @@ impl Simulator {
             self.pkg_scope_stack.last().and_then(|p| p.as_deref()),
         );
         let saved_m_scope_fn = std::mem::replace(&mut self.m_scope_stack, m_fn_entry);
-        // §6.21: open a static-local sync frame keyed by this subroutine name.
-        let sync_name = self.sync_frame_name(&fd.name.name.name);
+        // §6.21: open a static-local sync frame keyed by this declaration.
+        let sync_name = self.sync_frame_name(fd.canonical());
         self.static_local_syncs.push((sync_name, Vec::new()));
         // class-perf free-function tier: a package/module-scope function may
         // run as bytecode exactly like a class method. `this` is null here
@@ -1048,13 +1043,7 @@ impl Simulator {
         td: &TaskDeclaration,
         cleanup: &mut TaskCleanup,
     ) {
-        let scope = td
-            .name
-            .name
-            .name
-            .rsplit_once('.')
-            .map(|(scope, _)| scope.to_string())
-            .unwrap_or_default();
+        let scope = td.body_instance().unwrap_or_default().to_string();
         cleanup.prev_hint = self.name_resolve_hint.borrow().clone();
         cleanup.frame_scope_hint = Some(scope.clone());
         *self.name_resolve_hint.borrow_mut() = (!scope.is_empty()).then(|| scope.clone());
@@ -2474,8 +2463,8 @@ impl Simulator {
         }
         self.commit_formal_dyn(formal_dyn);
         self.push_local_frame_typed(locals, frame_types);
-        // §6.21: open a static-local sync frame keyed by this task name.
-        let sync_name = self.sync_frame_name(&td.name.name.name);
+        // §6.21: open a static-local sync frame keyed by this declaration.
+        let sync_name = self.sync_frame_name(td.canonical());
         self.static_local_syncs.push((sync_name, Vec::new()));
         // LRM §25.9: virtual-interface formals. When a formal's
         // declared data type names a known interface, register an

@@ -1590,6 +1590,7 @@ impl Simulator {
                         items: Default::default(),
                         endlabel: t.endlabel.clone(),
                         strict_body_ports: Vec::new(),
+                        ident: t.ident.clone(),
                         span: t.span,
                     };
                     &task_fd_storage

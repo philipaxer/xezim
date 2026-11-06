@@ -8175,6 +8175,9 @@ pub struct Simulator {
     /// Module/package subroutine statics allocated before procedural code.
     hoisted_sub_static_names: HashSet<String>,
     hoisted_static_subroutines: HashSet<String>,
+    /// Table name to the canonical name that owns its hoisted statics, where
+    /// the two differ.
+    hoisted_static_spellings: HashMap<String, String>,
     /// First-byte membership filter over `static_local_names`. The eval
     /// preamble tests EVERY bare identifier against that set, so a designs
     /// with any static subroutine local paid a string hash per expression
