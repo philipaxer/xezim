@@ -9739,6 +9739,7 @@ impl<'a> BytecodeCompiler<'a> {
             span: h.span,
             cached_signal_id: crate::ast::cache::SignalCache::new(None),
             cached_resolved_name: crate::ast::cache::NameCache::new(),
+            bound: crate::ast::binding::Bound::UNSET,
         };
         self.const_param_member_hier(&base, member)
     }
@@ -12492,6 +12493,7 @@ impl<'a> BytecodeCompiler<'a> {
                     span,
                     cached_signal_id: crate::ast::cache::SignalCache::new(None),
                     cached_resolved_name: crate::ast::cache::NameCache::new(),
+                    bound: crate::ast::binding::Bound::UNSET,
                 }),
                 span,
             )
@@ -25008,6 +25010,7 @@ mod tests {
                 span,
                 cached_signal_id: crate::ast::cache::SignalCache::new(None),
                 cached_resolved_name: crate::ast::cache::NameCache::new(),
+                bound: crate::ast::binding::Bound::UNSET,
             }),
             span,
         )
