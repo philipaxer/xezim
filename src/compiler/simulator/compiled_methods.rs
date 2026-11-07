@@ -4884,6 +4884,7 @@ impl Simulator {
                         span,
                         cached_signal_id: crate::ast::cache::SignalCache::new(None),
                         cached_resolved_name: crate::ast::cache::NameCache::new(),
+                        bound: crate::ast::binding::Bound::UNSET,
                     }),
                     span,
                 );
@@ -5056,6 +5057,7 @@ impl Simulator {
                     span: h.span,
                     cached_signal_id: crate::ast::cache::SignalCache::new(None),
                     cached_resolved_name: crate::ast::cache::NameCache::new(),
+                    bound: crate::ast::binding::Bound::UNSET,
                 };
                 let e = Expression::new(ExprKind::Ident(bare), lvalue.span);
                 if let Some(k) = self.lvalue_container_kind(&e) {

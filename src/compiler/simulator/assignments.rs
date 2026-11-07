@@ -1567,6 +1567,7 @@ impl Simulator {
                 span: hier.span,
                 cached_signal_id: crate::ast::cache::SignalCache::new(None),
                 cached_resolved_name: crate::ast::cache::NameCache::new(),
+                bound: crate::ast::binding::Bound::UNSET,
             });
         }
         // Identity-bound aggregate: the formal has no storage of its own.
@@ -1604,6 +1605,7 @@ impl Simulator {
             span: hier.span,
             cached_signal_id: crate::ast::cache::SignalCache::new(None),
             cached_resolved_name: crate::ast::cache::NameCache::new(),
+            bound: crate::ast::binding::Bound::UNSET,
         })
     }
 
@@ -1645,6 +1647,7 @@ impl Simulator {
                         span: id.span,
                         cached_signal_id: crate::ast::cache::SignalCache::new(None),
                         cached_resolved_name: crate::ast::cache::NameCache::new(),
+                        bound: crate::ast::binding::Bound::UNSET,
                     }),
                     id.span,
                 );
@@ -3783,6 +3786,7 @@ impl Simulator {
                         span: e.span,
                         cached_signal_id: crate::ast::cache::SignalCache::new(None),
                         cached_resolved_name: crate::ast::cache::NameCache::new(),
+                        bound: crate::ast::binding::Bound::UNSET,
                     }),
                     e.span,
                 ))
@@ -3839,6 +3843,7 @@ impl Simulator {
                     span: crate::ast::Span::dummy(),
                     cached_signal_id: crate::ast::cache::SignalCache::new(None),
                     cached_resolved_name: crate::ast::cache::NameCache::new(),
+                    bound: crate::ast::binding::Bound::UNSET,
                 }),
                 crate::ast::Span::dummy(),
             );
@@ -4008,6 +4013,7 @@ impl Simulator {
                                 span: h.span,
                                 cached_signal_id: crate::ast::cache::SignalCache::new(None),
                                 cached_resolved_name: crate::ast::cache::NameCache::new(),
+                                bound: crate::ast::binding::Bound::UNSET,
                             };
                             Some(self.resolve_hier_name(&head_id).into_owned())
                         }
