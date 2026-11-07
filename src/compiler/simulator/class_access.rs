@@ -504,7 +504,76 @@ impl Simulator {
         hit.cloned()
     }
 
+    /// §23.6, §13.3.1: `f.n` or `f.s.a` through a table entry whose cells live
+    /// under the declaration's canonical name. A local, or a variable with
+    /// members, named by the head wins (§23.7), except that a function's name
+    /// in its own body also names its scope (§13.4.1) unless the tail is a
+    /// member of its result. Fallback; remove when the head of a hierarchical
+    /// name is bound lexically.
+    #[cold]
+    pub(super) fn hoisted_static_through_entry(
+        &self,
+        hier: &HierarchicalIdentifier,
+    ) -> Option<String> {
+        if hier.root.is_some()
+            || hier.path.len() < 2
+            || hier.path.iter().any(|seg| !seg.selects.is_empty())
+        {
+            return None;
+        }
+        let segs: Vec<&str> = hier.path.iter().map(|seg| seg.name.name.as_str()).collect();
+        let full = segs.join(".");
+        if self.signal_name_to_id.contains_key(full.as_str()) || self.signals.contains_key(&full) {
+            return None;
+        }
+        let frame = self.local_stack.last();
+        let mut head = String::new();
+        for (i, seg) in segs[..segs.len() - 1].iter().enumerate() {
+            if i > 0 {
+                head.push('.');
+            }
+            head.push_str(seg);
+            if frame.is_some_and(|l| l.contains_key(head.as_str())) {
+                if self.func_call_stack.last() != Some(&head)
+                    || frame.is_some_and(|l| l.contains_key(full.as_str()))
+                {
+                    return None;
+                }
+            } else if self.head_has_members(&head) {
+                return None;
+            }
+            let Some(canonical) = self.hoisted_static_spellings.get(&head) else {
+                continue;
+            };
+            // The static is a prefix of the tail: `s` of `s.a`, `b.v` of `b.v`.
+            let tail = &segs[i + 1..];
+            let mut cell = canonical.clone();
+            for seg in tail {
+                cell.push('.');
+                cell.push_str(seg);
+                if self.hoisted_sub_static_names.contains(&cell) {
+                    return Some(format!("{}.{}", canonical, tail.join(".")));
+                }
+            }
+        }
+        None
+    }
+
+    /// §23.7(a): a module-level struct or class variable, which `head.m` selects.
+    fn head_has_members(&self, head: &str) -> bool {
+        self.module.struct_members.contains_key(head)
+            || self.module.packed_struct_fields.contains_key(head)
+            || self.var_class_types.contains_key(head)
+            || self.var_typedef_types.contains_key(head)
+    }
+
     pub(super) fn resolve_hier_name_slow(&self, hier: &HierarchicalIdentifier) -> String {
+        if !self.hoisted_static_spellings.is_empty() {
+            if let Some(target) = self.hoisted_static_through_entry(hier) {
+                let _ = hier.cached_resolved_name.set(target.clone());
+                return target;
+            }
+        }
         // Per-process local dynamic arrays: resolve the bare name through the
         // current process's per-frame rename map and BYPASS the AST-node cache.
         // The cache is shared across concurrent processes (they share AST

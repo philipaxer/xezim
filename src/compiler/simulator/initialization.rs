@@ -3691,7 +3691,7 @@ impl Simulator {
             }
             m
         };
-        let (hoisted_sub_static_names, hoisted_static_subroutines) =
+        let (hoisted_sub_static_names, hoisted_static_subroutines, hoisted_static_spellings) =
             Self::hoist_subroutine_statics(&mut module);
         let port_formal_two_state: HashMap<String, bool> = {
             let top = format!("{}.", module.name);
@@ -4110,6 +4110,7 @@ impl Simulator {
             static_local_names: HashSet::default(),
             hoisted_sub_static_names,
             hoisted_static_subroutines,
+            hoisted_static_spellings,
             static_local_first: [false; 256],
             static_local_keys: HashSet::default(),
             static_local_syncs: Vec::new(),
