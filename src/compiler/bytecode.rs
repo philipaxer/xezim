@@ -7707,6 +7707,7 @@ impl<'a> BytecodeCompiler<'a> {
                 .collect(),
             name,
             span: arg.span,
+            bound: Default::default(),
         };
         if self
             .typedef_entry(&self.typedef_coll_dims, &name, None)
@@ -24365,6 +24366,7 @@ mod tests {
                     span,
                 },
                 span,
+                bound: Default::default(),
             },
             dimensions: vec![],
             type_args: vec![],
@@ -30417,6 +30419,7 @@ impl crate::compiler::packed_assignment_pattern_plan::PatternTypeResolver
                 span,
             },
             span,
+            bound: Default::default(),
         };
         self.0.typedef_type_entry(&tn, None).is_some()
     }
